@@ -1,2 +1,2 @@
 # Data_Science
-# This is my Projects I am doing for Msc of Data Science (Deakin University)
+# This is a list of my all projects done during my data science Journey i started from 2023
