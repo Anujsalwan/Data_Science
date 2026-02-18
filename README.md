@@ -23,13 +23,7 @@ Bachelor of Commerce (B.Com) | SOL, Delhi University (2013)
 
 In Progress (Active Learning)
 
-Master of Data Science: Deakin University (Global) (Pursuing) (https://www.deakin.edu.au/course/master-data-science-global-international)
-
-Executive Certification in Data Science & AI: IIT Guwahati (Pursuing) (https://www.analytixlabs.co.in/executive-certification-in-data-science-with-ai-specialization
-
 Advanced Certification in Applied Data Science, Machine Learning & AI from ECI&T Academy & IIT Guwahati (Pursuing) (https://www.theiotacademy.co/advanced-certification-in-data-science-machine-learning-and-ai-by-eict-iitg)
-
-Data Science 3.0 with Gen AI from BEPEC (Pursuing) (https://bepec.in/courses/data-science-course-placements/)
 
 Professional Certification Program in Financial Analytics with AI (Pursuing) (https://coachx.live/live?Professional-Certification-Program-in-Financial-Analytics-with-AI=f335cc49-3702-411a-9a5b-3935e35b2573)
 
