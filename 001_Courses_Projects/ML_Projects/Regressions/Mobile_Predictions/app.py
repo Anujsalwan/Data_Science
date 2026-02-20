@@ -7,8 +7,8 @@ import pandas as pd
 @st.cache_resource
 def load_assets():
     # Streamlit looks for these in your root GitHub folder
-    model = joblib.load('Data_Science\\001_Courses_Projects\\ML_Projects\\Regressions\\Mobile_Predictions\\linear_model.pkl')
-    scaler = joblib.load('Data_Science\\001_Courses_Projects\\ML_Projects\\Regressions\\Mobile_Predictions\\scaler.pkl')
+    model = joblib.load('Data_Science/001_Courses_Projects/ML_Projects/Regressions/Mobile_Predictions/linear_model.pkl')
+    scaler = joblib.load('Data_Science/001_Courses_Projects/ML_Projects/Regressions/Mobile_Predictions/scaler.pkl')
     return model, scaler
 
 model, scaler = load_assets()
