@@ -48,7 +48,7 @@ st.subheader("Input Parameters")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    year = st.number_input("Year", 2000, 2025, 2015)
+    year = st.number_input("Year", 2000, 2090, 2015)
     status = st.selectbox("Status", ["Developed", "Developing"])
     adult_mortality = st.number_input("Adult Mortality (per 1000)", 1, 1000, 263)
     infant_deaths = st.number_input("Infant Deaths (per 1000)", 0, 2000, 62)
