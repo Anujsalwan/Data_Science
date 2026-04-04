@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import os
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # 1. Helper Function to generate/load the Scaler
 @st.cache_resource
@@ -75,34 +77,32 @@ with col3:
 
 # 3. Prediction Logic
 if st.button("Predict Life Expectancy", type="primary"):
-    # Preprocess status to match training (Developed=1, Developing=0)
     status_numeric = 1 if status == "Developed" else 0
     
-    # Create feature array in exact order: 
-    # ['Year', 'Status', 'Adult Mortality', 'infant deaths', 'Alcohol', 
-    #  'percentage expenditure', 'Hepatitis B', 'Measles ', ' BMI ', 
-    #  'under-five deaths ', 'Polio', 'Total expenditure', 'Diphtheria ', 
-    #  ' HIV/AIDS', 'GDP', 'Population', ' thinness  1-19 years', 
-    #  ' thinness 5-9 years', 'Income composition of resources', 'Schooling']
-    
-    raw_features = np.array([[
+    # 1. Create the data as a list
+    input_data = [[
         year, status_numeric, adult_mortality, infant_deaths, alcohol,
         perc_exp, hep_b, measles, bmi, under_five, 
         polio, total_exp, diphtheria, hiv_aids, gdp, 
         population, thin_1_19, thin_5_9, income_comp, schooling
-    ]])
+    ]]
+    
+    # 2. Convert to DataFrame with the ORIGINAL feature names
+    # This silences the "UserWarning: X does not have valid feature names"
+    features_df = pd.DataFrame(input_data, columns=feature_columns)
     
     try:
-        # 4. Apply the same scaling used in training
-        scaled_features = scaler.transform(raw_features)
+        # 4. Apply scaling using the DataFrame
+        scaled_features = scaler.transform(features_df)
         
-        # 5. Predict using the Gradient Boosting model
-        prediction = model.predict(scaled_features)
+        # 5. Predict (Pass the scaled features)
+        # Note: Scaler returns a numpy array, so the model might still warn. 
+        # To be 100% silent, turn the scaled array back into a DataFrame:
+        scaled_features_df = pd.DataFrame(scaled_features, columns=feature_columns)
+        prediction = model.predict(scaled_features_df)
         
         # Display Result
         st.success(f"### Predicted Life Expectancy: {prediction[0]:.1f} years")
-        
-        # Progress bar for visual appeal
         st.progress(min(max(prediction[0]/100, 0.0), 1.0))
         
     except Exception as e:
