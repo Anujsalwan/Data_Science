@@ -11,10 +11,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 @st.cache_resource
 def prepare_assets():
     # Load the new model
-    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_gradient_boosting_model.pkl')
+    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Project_1_Life_Income/best_gradient_boosting_model.pkl')
     
     # Load CSV to recreate the scaler (since model was trained on scaled data)
-    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/Life Expectancy Data.csv')
+    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Project_1_Life_Income/Life Expectancy Data.csv')
     
     # Preprocessing to match the training pipeline in the notebook
     df = df.drop_duplicates(subset=['Country', 'Year'])
