@@ -141,11 +141,6 @@ st.set_page_config(page_title="Income Prediction", layout="wide")
 st.title("💰 Income Prediction App")
 st.write("Data Set Used : https://www.kaggle.com/datasets/lodetomasi1995/income-classification/")
 st.write("Enter demographic and employment details to predict whether annual income exceeds **$50K** (UCI Adult dataset).")
-st.caption(
-    f"Model expects {len(feature_columns)} features · "
-    f"leading-space schema: {LEADING_SPACE} · "
-    f"fnlwgt kept: {KEEPS_FNLWGT}"
-)
 
 # 2. Dropdown options (taken directly from the training CSV)
 WORKCLASS_OPTIONS = [
