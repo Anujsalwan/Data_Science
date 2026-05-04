@@ -1,271 +1,109 @@
-"""
-Income Prediction Streamlit App
---------------------------------
-Predicts whether a person's income is >50K or <=50K using the UCI Adult dataset.
-
-Required files in the same directory:
-    - best_<model_name>_classifier.pkl    (the trained classifier)
-    - train_columns.pkl                   (list of X_train.columns from the notebook)
-    - scaler.pkl                          (the StandardScaler fit on training data)
-
-Run with:
-    streamlit run app.py
-"""
-
-import os
+import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-import streamlit as st
+from sklearn.preprocessing import StandardScaler
+import os
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
-
-# ---------------------------------------------------------------------------
-# 1. Page config
-# ---------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Income Prediction",
-    page_icon="💰",
-    layout="centered",
-)
-
-st.title("💰 Income Prediction App")
-st.caption(
-    "Predicts whether annual income exceeds **$50K** based on demographic and "
-    "employment data (UCI Adult dataset)."
-)
-
-
-# ---------------------------------------------------------------------------
-# 2. Load model + preprocessing artifacts (cached)
-# ---------------------------------------------------------------------------
-MODEL_CANDIDATES = [
-    "best_xgboost_classifier.pkl",
-    "best_lightgbm_classifier.pkl",
-    "best_gradient_boosting_classifier.pkl",
-    "best_random_forest_classifier.pkl",
-    "best_logistic_regression_classifier.pkl",
-]
-
-
+# 1. Helper Function to generate/load the Scaler
 @st.cache_resource
-def load_artifacts():
-    """Load model, training column list, and scaler. Cached across reruns."""
-    # find whichever classifier .pkl is present
-    model_path = next((p for p in MODEL_CANDIDATES if os.path.exists(p)), None)
-    if model_path is None:
-        st.error(
-            "No classifier .pkl found. Expected one of: "
-            + ", ".join(MODEL_CANDIDATES)
-        )
-        st.stop()
+def prepare_assets():
+    # Load the new model
+    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_gradient_boosting_model.pkl')
+    
+    # Load CSV to recreate the scaler (since model was trained on scaled data)
+    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/Life Expectancy Data.csv')
+    
+    # Preprocessing to match the training pipeline in the notebook
+    df = df.drop_duplicates(subset=['Country', 'Year'])
+    df['Status'] = df['Status'].map({'Developed': 1, 'Developing': 0})
+    df_clean = df.drop(columns=['Country']).rename(columns={'Life expectancy ': 'Life_expectancy'})
+    
+    # Simple Imputation (as done in the notebook)
+    for col in df_clean.columns:
+        df_clean[col] = df_clean[col].fillna(df_clean[col].median())
+        
+    # Prepare Features (X)
+    X = df_clean.drop(columns=['Life_expectancy'])
+    
+    # Fit the scaler
+    scaler = StandardScaler()
+    scaler.fit(X)
+    
+    return model, scaler, X.columns.tolist()
 
-    if not os.path.exists("train_columns.pkl"):
-        st.error(
-            "`train_columns.pkl` is missing. Re-run training and add:\n\n"
-            "```python\njoblib.dump(list(X_train.columns), 'train_columns.pkl')\n```"
-        )
-        st.stop()
+# Initialize Model and Scaler
+try:
+    model, scaler, feature_columns = prepare_assets()
+except Exception as e:
+    st.error(f"Error loading assets: {e}. Ensure 'best_gradient_boosting_model.pkl' and 'Life Expectancy Data.csv' are in the folder.")
+    st.stop()
 
-    if not os.path.exists("scaler.pkl"):
-        st.error(
-            "`scaler.pkl` is missing. Re-run training and add:\n\n"
-            "```python\njoblib.dump(scaler, 'scaler.pkl')\n```"
-        )
-        st.stop()
+st.set_page_config(page_title="Life Expectancy Predictor", layout="wide")
+st.title("🌍 Life Expectancy Prediction App")
+st.write("Enter health and economic indicators to predict the life expectancy of a population.")
 
-    model = joblib.load(model_path)
-    train_columns = joblib.load("train_columns.pkl")
-    scaler = joblib.load("scaler.pkl")
-    return model, train_columns, scaler, model_path
+# 2. Input Fields Layout
+st.subheader("Input Parameters")
+col1, col2, col3 = st.columns(3)
 
+with col1:
+    year = st.number_input("Year", 2000, 2090, 2015)
+    status = st.selectbox("Status", ["Developed", "Developing"])
+    adult_mortality = st.number_input("Adult Mortality (per 1000)", 1, 1000, 263)
+    infant_deaths = st.number_input("Infant Deaths (per 1000)", 0, 2000, 62)
+    alcohol = st.number_input("Alcohol Consumption (litres)", 0.0, 20.0, 0.01)
+    perc_exp = st.number_input("Percentage Expenditure (%)", 0.0, 20000.0, 71.2)
+    hep_b = st.number_input("Hepatitis B Coverage (%)", 0, 100, 65)
 
-model, TRAIN_COLUMNS, scaler, model_path = load_artifacts()
+with col2:
+    measles = st.number_input("Measles (reported cases)", 0, 300000, 1154)
+    bmi = st.number_input("Average BMI", 1.0, 100.0, 19.1)
+    under_five = st.number_input("Under-five Deaths", 0, 3000, 83)
+    polio = st.number_input("Polio Coverage (%)", 0, 100, 6)
+    total_exp = st.number_input("Total Govt Expenditure (%)", 0.0, 20.0, 8.1)
+    diphtheria = st.number_input("Diphtheria Coverage (%)", 0, 100, 65)
+    hiv_aids = st.number_input("HIV/AIDS Prevalence (%)", 0.0, 60.0, 0.1)
 
-# Numeric columns that the scaler was fit on (must match training exactly).
-# In the notebook fnlwgt was DROPPED before scaling, so it's not here.
-NUMERIC_COLS = [
-    "age",
-    "education-num",
-    "capital-gain",
-    "capital-loss",
-    "hours-per-week",
-]
+with col3:
+    gdp = st.number_input("GDP (USD per capita)", 0.0, 120000.0, 584.2)
+    population = st.number_input("Population", 0.0, 2e9, 3.3e7)
+    thin_1_19 = st.number_input("Thinness 1-19 years (%)", 0.0, 30.0, 17.2)
+    thin_5_9 = st.number_input("Thinness 5-9 years (%)", 0.0, 30.0, 17.3)
+    income_comp = st.number_input("Income Composition of Resources", 0.0, 1.0, 0.47)
+    schooling = st.number_input("Schooling (years)", 0.0, 25.0, 10.1)
 
-
-# ---------------------------------------------------------------------------
-# 3. Dropdown options (taken directly from the training CSV)
-# ---------------------------------------------------------------------------
-WORKCLASS_OPTIONS = [
-    "Private", "Self-emp-not-inc", "Self-emp-inc", "Federal-gov", "Local-gov",
-    "State-gov", "Without-pay", "Never-worked", "?",
-]
-EDUCATION_OPTIONS = [
-    "Preschool", "1st-4th", "5th-6th", "7th-8th", "9th", "10th", "11th", "12th",
-    "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors",
-    "Masters", "Prof-school", "Doctorate",
-]
-# education-num mapping (matches the dataset's encoding)
-EDUCATION_NUM_MAP = {
-    "Preschool": 1, "1st-4th": 2, "5th-6th": 3, "7th-8th": 4, "9th": 5,
-    "10th": 6, "11th": 7, "12th": 8, "HS-grad": 9, "Some-college": 10,
-    "Assoc-voc": 11, "Assoc-acdm": 12, "Bachelors": 13, "Masters": 14,
-    "Prof-school": 15, "Doctorate": 16,
-}
-MARITAL_OPTIONS = [
-    "Married-civ-spouse", "Never-married", "Divorced", "Separated", "Widowed",
-    "Married-spouse-absent", "Married-AF-spouse",
-]
-OCCUPATION_OPTIONS = [
-    "Prof-specialty", "Exec-managerial", "Adm-clerical", "Sales", "Craft-repair",
-    "Other-service", "Machine-op-inspct", "Transport-moving", "Handlers-cleaners",
-    "Tech-support", "Farming-fishing", "Protective-serv", "Priv-house-serv",
-    "Armed-Forces", "?",
-]
-RELATIONSHIP_OPTIONS = [
-    "Husband", "Not-in-family", "Own-child", "Unmarried", "Wife", "Other-relative",
-]
-RACE_OPTIONS = ["White", "Black", "Asian-Pac-Islander", "Amer-Indian-Eskimo", "Other"]
-SEX_OPTIONS = ["Male", "Female"]
-COUNTRY_OPTIONS = [
-    "United-States", "Mexico", "Philippines", "Germany", "Canada", "Puerto-Rico",
-    "El-Salvador", "India", "Cuba", "England", "Jamaica", "South", "China",
-    "Italy", "Dominican-Republic", "Vietnam", "Guatemala", "Japan", "Poland",
-    "Columbia", "Taiwan", "Haiti", "Iran", "Portugal", "Nicaragua", "Peru",
-    "Greece", "France", "Ecuador", "Ireland", "Hong", "Cambodia", "Trinadad&Tobago",
-    "Laos", "Thailand", "Yugoslavia", "Outlying-US(Guam-USVI-etc)", "Honduras",
-    "Hungary", "Scotland", "Holand-Netherlands", "?",
-]
-
-
-# ---------------------------------------------------------------------------
-# 4. Preprocessing — must mirror the notebook EXACTLY
-# ---------------------------------------------------------------------------
-def preprocess_input(raw: dict) -> pd.DataFrame:
-    """Turn a dict of raw form values into a model-ready feature row.
-
-    Steps (must match the training notebook):
-      1. Build a one-row DataFrame.
-      2. Drop `fnlwgt` (the notebook drops it before encoding).
-      3. Strip whitespace from string columns.
-      4. One-hot encode categorical columns with drop_first=True.
-      5. Reindex to TRAIN_COLUMNS — adds missing dummies as 0, drops extras,
-         enforces the exact training column order.
-      6. Scale the numeric columns with the SAME StandardScaler used in training.
-    """
-    df = pd.DataFrame([raw])
-
-    # Step 2: drop fnlwgt if present
-    if "fnlwgt" in df.columns:
-        df = df.drop(columns=["fnlwgt"])
-
-    # Step 3: strip whitespace from object columns (training did this)
-    for col in df.select_dtypes(include="object").columns:
-        df[col] = df[col].str.strip()
-
-    # Step 4: one-hot encode (drop_first=True, same as training)
-    cat_cols = df.select_dtypes(include="object").columns.tolist()
-    df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
-
-    # Step 5: align columns to training feature space
-    df = df.reindex(columns=TRAIN_COLUMNS, fill_value=0)
-
-    # Step 6: scale numeric columns (only those that exist in TRAIN_COLUMNS)
-    cols_to_scale = [c for c in NUMERIC_COLS if c in df.columns]
-    if cols_to_scale:
-        df[cols_to_scale] = scaler.transform(df[cols_to_scale])
-
-    return df
-
-
-# ---------------------------------------------------------------------------
-# 5. Sidebar — model info
-# ---------------------------------------------------------------------------
-with st.sidebar:
-    st.header("Model")
-    st.write(f"**File:** `{model_path}`")
-    st.write(f"**Type:** `{type(model).__name__}`")
-    st.write(f"**# features expected:** {len(TRAIN_COLUMNS)}")
-    with st.expander("Show feature list"):
-        st.write(TRAIN_COLUMNS)
-
-
-# ---------------------------------------------------------------------------
-# 6. Input form
-# ---------------------------------------------------------------------------
-st.subheader("Enter the person's details")
-
-with st.form("income_form"):
-    col1, col2 = st.columns(2)
-
-    with col1:
-        age = st.number_input("Age", min_value=17, max_value=90, value=37, step=1)
-        education = st.selectbox("Education", EDUCATION_OPTIONS, index=EDUCATION_OPTIONS.index("HS-grad"))
-        workclass = st.selectbox("Workclass", WORKCLASS_OPTIONS, index=0)
-        occupation = st.selectbox("Occupation", OCCUPATION_OPTIONS, index=0)
-        hours_per_week = st.number_input("Hours per week", min_value=1, max_value=99, value=40, step=1)
-        capital_gain = st.number_input("Capital gain", min_value=0, max_value=99999, value=0, step=100)
-
-    with col2:
-        sex = st.selectbox("Sex", SEX_OPTIONS, index=0)
-        race = st.selectbox("Race", RACE_OPTIONS, index=0)
-        marital_status = st.selectbox("Marital status", MARITAL_OPTIONS, index=0)
-        relationship = st.selectbox("Relationship", RELATIONSHIP_OPTIONS, index=0)
-        native_country = st.selectbox("Native country", COUNTRY_OPTIONS, index=0)
-        capital_loss = st.number_input("Capital loss", min_value=0, max_value=4356, value=0, step=50)
-
-    submitted = st.form_submit_button("Predict", type="primary", use_container_width=True)
-
-
-# ---------------------------------------------------------------------------
-# 7. Prediction
-# ---------------------------------------------------------------------------
-if submitted:
-    # Build raw input dict — keys MUST match the original CSV column names
-    raw_input = {
-        "age": age,
-        "workclass": workclass,
-        "education": education,
-        "education-num": EDUCATION_NUM_MAP[education],
-        "marital-status": marital_status,
-        "occupation": occupation,
-        "relationship": relationship,
-        "race": race,
-        "sex": sex,
-        "capital-gain": capital_gain,
-        "capital-loss": capital_loss,
-        "hours-per-week": hours_per_week,
-        "native-country": native_country,
-    }
-
+# 3. Prediction Logic
+if st.button("Predict Life Expectancy", type="primary"):
+    status_numeric = 1 if status == "Developed" else 0
+    
+    # 1. Create the data as a list
+    input_data = [[
+        year, status_numeric, adult_mortality, infant_deaths, alcohol,
+        perc_exp, hep_b, measles, bmi, under_five, 
+        polio, total_exp, diphtheria, hiv_aids, gdp, 
+        population, thin_1_19, thin_5_9, income_comp, schooling
+    ]]
+    
+    # 2. Convert to DataFrame with the ORIGINAL feature names
+    # This silences the "UserWarning: X does not have valid feature names"
+    features_df = pd.DataFrame(input_data, columns=feature_columns)
+    
     try:
-        X_new = preprocess_input(raw_input)
-        pred = model.predict(X_new)[0]
-
-        # Probability if the model supports it
-        proba = None
-        if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X_new)[0]
-
-        st.divider()
-        st.subheader("Prediction")
-
-        if int(pred) == 1:
-            st.success("### 💸 Income is likely **> $50K**")
-        else:
-            st.info("### 💵 Income is likely **≤ $50K**")
-
-        if proba is not None:
-            c1, c2 = st.columns(2)
-            c1.metric("P(income ≤ $50K)", f"{proba[0]*100:.1f}%")
-            c2.metric("P(income > $50K)", f"{proba[1]*100:.1f}%")
-            st.progress(float(proba[1]))
-
-        with st.expander("Show raw input sent to the model"):
-            st.json(raw_input)
-
-        with st.expander("Show processed feature row (first 30 cols)"):
-            st.dataframe(X_new.iloc[:, :30])
-
+        # 4. Apply scaling using the DataFrame
+        scaled_features = scaler.transform(features_df)
+        
+        # 5. Predict (Pass the scaled features)
+        # Note: Scaler returns a numpy array, so the model might still warn. 
+        # To be 100% silent, turn the scaled array back into a DataFrame:
+        scaled_features_df = pd.DataFrame(scaled_features, columns=feature_columns)
+        prediction = model.predict(scaled_features_df)
+        
+        # Display Result
+        st.success(f"### Predicted Life Expectancy: {prediction[0]:.1f} years")
+        st.progress(min(max(prediction[0]/100, 0.0), 1.0))
+        
     except Exception as e:
-        st.error(f"Prediction failed: {e}")
-        st.exception(e)
+        st.error(f"Prediction Error: {e}")

@@ -1,96 +1,68 @@
-"""
-Income Prediction Streamlit App
---------------------------------
-Predicts whether a person's income is >50K or <=50K using the UCI Adult dataset.
-
-Required files in the same directory:
-    - best_<model_name>_classifier.pkl    (the trained classifier)
-    - train_columns.pkl                   (list of X_train.columns from the notebook)
-    - scaler.pkl                          (the StandardScaler fit on training data)
-
-Run with:
-    streamlit run app.py
-"""
-
-import os
+import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-import streamlit as st
+from sklearn.preprocessing import StandardScaler
+import os
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
-
-# ---------------------------------------------------------------------------
-# 1. Page config
-# ---------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Income Prediction",
-    page_icon="💰",
-    layout="centered",
-)
-
-st.title("💰 Income Prediction App")
-st.caption(
-    "Predicts whether annual income exceeds **$50K** based on demographic and "
-    "employment data (UCI Adult dataset)."
-)
-
-
-# ---------------------------------------------------------------------------
-# 2. Load model + preprocessing artifacts (cached)
-# ---------------------------------------------------------------------------
-MODEL_CANDIDATES = [
-    "best_xgboost_classifier.pkl",
-]
-
-
+# 1. Helper Function to generate/load the Scaler and training columns from the CSV
 @st.cache_resource
-def load_artifacts():
-    """Load model, training column list, and scaler. Cached across reruns."""
-    # find whichever classifier .pkl is present
-    model_path = next((p for p in MODEL_CANDIDATES if os.path.exists(p)), None)
-    if model_path is None:
-        st.error(
-            "No classifier .pkl found. Expected one of: "
-            + ", ".join(MODEL_CANDIDATES)
-        )
-        st.stop()
+def prepare_assets():
+    base_path = '001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy'
 
-    if not os.path.exists("train_columns.pkl"):
-        st.error(
-            "`train_columns.pkl` is missing. Re-run training and add:\n\n"
-            "```python\njoblib.dump(list(X_train.columns), 'train_columns.pkl')\n```"
-        )
-        st.stop()
+    # Load the trained classifier
+    model = joblib.load(os.path.join(base_path, 'best_xgboost_classifier.pkl'))
 
-    if not os.path.exists("scaler.pkl"):
-        st.error(
-            "`scaler.pkl` is missing. Re-run training and add:\n\n"
-            "```python\njoblib.dump(scaler, 'scaler.pkl')\n```"
-        )
-        st.stop()
+    # Load CSV to recreate the scaler and training columns
+    df = pd.read_csv(os.path.join(base_path, 'adult.csv'))
 
-    model = joblib.load(model_path)
-    train_columns = joblib.load("train_columns.pkl")
-    scaler = joblib.load("scaler.pkl")
-    return model, train_columns, scaler, model_path
+    # Preprocessing to match the training pipeline in the notebook
+    # Strip whitespace from string columns
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].str.strip()
 
+    # Drop fnlwgt (dropped before encoding in the notebook)
+    if "fnlwgt" in df.columns:
+        df = df.drop(columns=["fnlwgt"])
 
-model, TRAIN_COLUMNS, scaler, model_path = load_artifacts()
+    # Separate target
+    target_col = "income" if "income" in df.columns else df.columns[-1]
+    df_clean = df.drop(columns=[target_col])
 
-# Numeric columns that the scaler was fit on (must match training exactly).
-# In the notebook fnlwgt was DROPPED before scaling, so it's not here.
-NUMERIC_COLS = [
-    "age",
-    "education-num",
-    "capital-gain",
-    "capital-loss",
-    "hours-per-week",
-]
+    # One-hot encode categorical columns (drop_first=True, same as training)
+    cat_cols = df_clean.select_dtypes(include="object").columns.tolist()
+    X = pd.get_dummies(df_clean, columns=cat_cols, drop_first=True)
 
+    # Numeric columns the scaler was fit on
+    numeric_cols = [
+        "age",
+        "education-num",
+        "capital-gain",
+        "capital-loss",
+        "hours-per-week",
+    ]
+    numeric_cols = [c for c in numeric_cols if c in X.columns]
 
-# ---------------------------------------------------------------------------
-# 3. Dropdown options (taken directly from the training CSV)
-# ---------------------------------------------------------------------------
+    # Fit the scaler on the numeric columns only
+    scaler = StandardScaler()
+    scaler.fit(X[numeric_cols])
+
+    return model, scaler, X.columns.tolist(), numeric_cols
+
+# Initialize Model, Scaler and feature columns
+try:
+    model, scaler, feature_columns, NUMERIC_COLS = prepare_assets()
+except Exception as e:
+    st.error(f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' and 'adult.csv' are in the folder.")
+    st.stop()
+
+st.set_page_config(page_title="Income Prediction", layout="wide")
+st.title("💰 Income Prediction App")
+st.write("Enter demographic and employment details to predict whether annual income exceeds **$50K** (UCI Adult dataset).")
+
+# 2. Dropdown options (taken directly from the training CSV)
 WORKCLASS_OPTIONS = [
     "Private", "Self-emp-not-inc", "Self-emp-inc", "Federal-gov", "Local-gov",
     "State-gov", "Without-pay", "Never-worked", "?",
@@ -100,7 +72,6 @@ EDUCATION_OPTIONS = [
     "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors",
     "Masters", "Prof-school", "Doctorate",
 ]
-# education-num mapping (matches the dataset's encoding)
 EDUCATION_NUM_MAP = {
     "Preschool": 1, "1st-4th": 2, "5th-6th": 3, "7th-8th": 4, "9th": 5,
     "10th": 6, "11th": 7, "12th": 8, "HS-grad": 9, "Some-college": 10,
@@ -132,90 +103,30 @@ COUNTRY_OPTIONS = [
     "Hungary", "Scotland", "Holand-Netherlands", "?",
 ]
 
+# 3. Input Fields Layout
+st.subheader("Input Parameters")
+col1, col2, col3 = st.columns(3)
 
-# ---------------------------------------------------------------------------
-# 4. Preprocessing — must mirror the notebook EXACTLY
-# ---------------------------------------------------------------------------
-def preprocess_input(raw: dict) -> pd.DataFrame:
-    """Turn a dict of raw form values into a model-ready feature row.
+with col1:
+    age = st.number_input("Age", 17, 90, 37)
+    workclass = st.selectbox("Workclass", WORKCLASS_OPTIONS, index=0)
+    education = st.selectbox("Education", EDUCATION_OPTIONS, index=EDUCATION_OPTIONS.index("HS-grad"))
+    occupation = st.selectbox("Occupation", OCCUPATION_OPTIONS, index=0)
+    hours_per_week = st.number_input("Hours per week", 1, 99, 40)
 
-    Steps (must match the training notebook):
-      1. Build a one-row DataFrame.
-      2. Drop `fnlwgt` (the notebook drops it before encoding).
-      3. Strip whitespace from string columns.
-      4. One-hot encode categorical columns with drop_first=True.
-      5. Reindex to TRAIN_COLUMNS — adds missing dummies as 0, drops extras,
-         enforces the exact training column order.
-      6. Scale the numeric columns with the SAME StandardScaler used in training.
-    """
-    df = pd.DataFrame([raw])
+with col2:
+    sex = st.selectbox("Sex", SEX_OPTIONS, index=0)
+    race = st.selectbox("Race", RACE_OPTIONS, index=0)
+    marital_status = st.selectbox("Marital status", MARITAL_OPTIONS, index=0)
+    relationship = st.selectbox("Relationship", RELATIONSHIP_OPTIONS, index=0)
+    native_country = st.selectbox("Native country", COUNTRY_OPTIONS, index=0)
 
-    # Step 2: drop fnlwgt if present
-    if "fnlwgt" in df.columns:
-        df = df.drop(columns=["fnlwgt"])
+with col3:
+    capital_gain = st.number_input("Capital gain", 0, 99999, 0, step=100)
+    capital_loss = st.number_input("Capital loss", 0, 4356, 0, step=50)
 
-    # Step 3: strip whitespace from object columns (training did this)
-    for col in df.select_dtypes(include="object").columns:
-        df[col] = df[col].str.strip()
-
-    # Step 4: one-hot encode (drop_first=True, same as training)
-    cat_cols = df.select_dtypes(include="object").columns.tolist()
-    df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
-
-    # Step 5: align columns to training feature space
-    df = df.reindex(columns=TRAIN_COLUMNS, fill_value=0)
-
-    # Step 6: scale numeric columns (only those that exist in TRAIN_COLUMNS)
-    cols_to_scale = [c for c in NUMERIC_COLS if c in df.columns]
-    if cols_to_scale:
-        df[cols_to_scale] = scaler.transform(df[cols_to_scale])
-
-    return df
-
-
-# ---------------------------------------------------------------------------
-# 5. Sidebar — model info
-# ---------------------------------------------------------------------------
-with st.sidebar:
-    st.header("Model")
-    st.write(f"**File:** `{model_path}`")
-    st.write(f"**Type:** `{type(model).__name__}`")
-    st.write(f"**# features expected:** {len(TRAIN_COLUMNS)}")
-    with st.expander("Show feature list"):
-        st.write(TRAIN_COLUMNS)
-
-
-# ---------------------------------------------------------------------------
-# 6. Input form
-# ---------------------------------------------------------------------------
-st.subheader("Enter the person's details")
-
-with st.form("income_form"):
-    col1, col2 = st.columns(2)
-
-    with col1:
-        age = st.number_input("Age", min_value=17, max_value=90, value=37, step=1)
-        education = st.selectbox("Education", EDUCATION_OPTIONS, index=EDUCATION_OPTIONS.index("HS-grad"))
-        workclass = st.selectbox("Workclass", WORKCLASS_OPTIONS, index=0)
-        occupation = st.selectbox("Occupation", OCCUPATION_OPTIONS, index=0)
-        hours_per_week = st.number_input("Hours per week", min_value=1, max_value=99, value=40, step=1)
-        capital_gain = st.number_input("Capital gain", min_value=0, max_value=99999, value=0, step=100)
-
-    with col2:
-        sex = st.selectbox("Sex", SEX_OPTIONS, index=0)
-        race = st.selectbox("Race", RACE_OPTIONS, index=0)
-        marital_status = st.selectbox("Marital status", MARITAL_OPTIONS, index=0)
-        relationship = st.selectbox("Relationship", RELATIONSHIP_OPTIONS, index=0)
-        native_country = st.selectbox("Native country", COUNTRY_OPTIONS, index=0)
-        capital_loss = st.number_input("Capital loss", min_value=0, max_value=4356, value=0, step=50)
-
-    submitted = st.form_submit_button("Predict", type="primary", use_container_width=True)
-
-
-# ---------------------------------------------------------------------------
-# 7. Prediction
-# ---------------------------------------------------------------------------
-if submitted:
+# 4. Prediction Logic
+if st.button("Predict Income", type="primary"):
     # Build raw input dict — keys MUST match the original CSV column names
     raw_input = {
         "age": age,
@@ -234,34 +145,46 @@ if submitted:
     }
 
     try:
-        X_new = preprocess_input(raw_input)
-        pred = model.predict(X_new)[0]
+        # 1. Create DataFrame from raw input
+        df = pd.DataFrame([raw_input])
 
-        # Probability if the model supports it
+        # 2. Strip whitespace from string columns (matches training)
+        for col in df.select_dtypes(include="object").columns:
+            df[col] = df[col].str.strip()
+
+        # 3. One-hot encode (drop_first=True, same as training)
+        cat_cols = df.select_dtypes(include="object").columns.tolist()
+        df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+
+        # 4. Align columns to training feature space
+        # (adds missing dummies as 0, drops extras, enforces column order)
+        features_df = df.reindex(columns=feature_columns, fill_value=0)
+
+        # 5. Scale numeric columns with the same scaler used in training
+        cols_to_scale = [c for c in NUMERIC_COLS if c in features_df.columns]
+        if cols_to_scale:
+            features_df[cols_to_scale] = scaler.transform(features_df[cols_to_scale])
+
+        # 6. Predict
+        prediction = model.predict(features_df)[0]
+
+        # Probability if available
         proba = None
         if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X_new)[0]
+            proba = model.predict_proba(features_df)[0]
 
+        # Display Result
         st.divider()
-        st.subheader("Prediction")
-
-        if int(pred) == 1:
-            st.success("### 💸 Income is likely **> $50K**")
+        if int(prediction) == 1:
+            st.success("### 💸 Predicted Income: **> $50K**")
         else:
-            st.info("### 💵 Income is likely **≤ $50K**")
+            st.info("### 💵 Predicted Income: **≤ $50K**")
 
         if proba is not None:
-            c1, c2 = st.columns(2)
-            c1.metric("P(income ≤ $50K)", f"{proba[0]*100:.1f}%")
-            c2.metric("P(income > $50K)", f"{proba[1]*100:.1f}%")
-            st.progress(float(proba[1]))
-
-        with st.expander("Show raw input sent to the model"):
-            st.json(raw_input)
-
-        with st.expander("Show processed feature row (first 30 cols)"):
-            st.dataframe(X_new.iloc[:, :30])
+            pc1, pc2 = st.columns(2)
+            pc1.metric("P(income ≤ $50K)", f"{proba[0]*100:.1f}%")
+            pc2.metric("P(income > $50K)", f"{proba[1]*100:.1f}%")
+            st.progress(min(max(float(proba[1]), 0.0), 1.0))
 
     except Exception as e:
-        st.error(f"Prediction failed: {e}")
-        st.exception(e)
+        st.error(f"Prediction Error: {e}")
