@@ -11,11 +11,11 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 @st.cache_resource
 def prepare_assets():
     # Load the trained classification model
-    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Income_Classification/best_xgboost_classifier.pkl')
+    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_xgboost_classifier.pkl')
 
     # Load CSV to recreate the scaler & label encoders
     # (model was trained on encoded + scaled data)
-    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Income_Classification/income_evaluation.csv')
+    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/income_evaluation.csv')
 
     # Strip whitespace from column names and string values
     df.columns = [c.strip() for c in df.columns]
