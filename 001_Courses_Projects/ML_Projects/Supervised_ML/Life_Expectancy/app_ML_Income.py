@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 @st.cache_resource
 def prepare_assets():
     # Load the trained classification model
-    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Income_Classification/best_gradient_boosting_model.pkl')
+    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Income_Classification/best_xgboost_classifier.pkl')
 
     # Load CSV to recreate the scaler & label encoders
     # (model was trained on encoded + scaled data)
@@ -68,7 +68,7 @@ try:
     model, scaler, encoders, target_encoder, feature_columns = prepare_assets()
 except Exception as e:
     st.error(
-        f"Error loading assets: {e}. Ensure 'best_gradient_boosting_model.pkl' "
+        f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' "
         f"and 'income_evaluation.csv' are in the folder."
     )
     st.stop()
