@@ -16,62 +16,135 @@ except Exception:
 # 1. Helper Function to generate/load the Scaler and training columns from the CSV
 @st.cache_resource
 def prepare_assets():
-    # Resolve paths relative to THIS script so it works no matter where Streamlit is launched from
+    """Recreate the EXACT preprocessing pipeline from the notebook.
+
+    The notebook flow (Anuj_Salwan.ipynb, cells 41-50) is:
+      1. read_csv("income_evaluation.csv")        # raw CSV has leading-space column names
+      2. df.columns = df.columns.str.strip()      # strip column names
+      3. df = df.drop(columns=['fnlwgt'])         # drop fnlwgt
+      4. df.columns = df.columns.str.strip()      # strip again (notebook does it twice)
+      5. strip whitespace from object cell values
+      6. df['income'] = df['income'].map({'<=50K': 0, '>50K': 1})
+      7. pd.get_dummies(..., drop_first=True) on all object cols except 'income'
+      8. StandardScaler fit on ALL numeric columns minus 'income' (incl. dummy bool cols)
+
+    However: the saved model may have been trained on an older version of the
+    preprocessing (e.g. before the strip / before fnlwgt was dropped). We trust
+    the model — read its expected feature names and align the CSV-derived
+    columns to that list exactly.
+    """
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     model_path = os.path.join(script_dir, 'best_xgboost_classifier.pkl')
-    csv_path = os.path.join(script_dir, 'income_evaluation.csv')
+
+    # CSV may be named either way depending on the project; try common names.
+    csv_candidates = ['income_evaluation.csv', 'adult.csv', 'adult_income.csv']
+    csv_path = next((os.path.join(script_dir, n) for n in csv_candidates
+                     if os.path.exists(os.path.join(script_dir, n))), None)
+    if csv_path is None:
+        raise FileNotFoundError(
+            f"None of {csv_candidates} found in {script_dir}"
+        )
 
     # Load the trained classifier
     model = joblib.load(model_path)
 
-    # Load CSV to recreate the scaler and training columns
+    # Read what the model ACTUALLY expects (source of truth).
+    expected_features = None
+    try:
+        booster = model.get_booster()
+        if booster.feature_names is not None:
+            expected_features = list(booster.feature_names)
+    except Exception:
+        pass
+    if expected_features is None and hasattr(model, "feature_names_in_"):
+        expected_features = list(model.feature_names_in_)
+
+    # Detect whether the model expects leading spaces in column names.
+    # If the raw CSV has " workclass" etc. and the notebook DIDN'T strip before
+    # encoding, the dummy columns will look like " workclass_Private".
+    leading_space_in_model = (
+        expected_features is not None
+        and any(f.startswith(" ") for f in expected_features)
+    )
+    keeps_fnlwgt = (
+        expected_features is not None
+        and any(f.strip() == "fnlwgt" for f in expected_features)
+    )
+
+    # ---------- Reproduce notebook preprocessing on the CSV ----------
     df = pd.read_csv(csv_path)
 
-    # Preprocessing to match the training pipeline in the notebook
-    # Strip whitespace from string columns (handle pandas 2/3/4 compat)
+    # Capture raw column names BEFORE any stripping so we can use them verbatim
+    # when the user enters input. Map: stripped_name -> raw_name (e.g. "workclass" -> " workclass")
+    raw_name_map = {c.strip(): c for c in df.columns}
+
+    # If the model has stripped names, strip the CSV's column names too.
+    # Otherwise leave them untouched so dummies inherit the leading space.
+    if not leading_space_in_model:
+        df.columns = df.columns.str.strip()
+
+    # Drop fnlwgt only if the model was trained without it.
+    if not keeps_fnlwgt:
+        # Account for either ' fnlwgt' or 'fnlwgt'
+        for c in list(df.columns):
+            if c.strip() == "fnlwgt":
+                df = df.drop(columns=[c])
+
+    # Strip whitespace from string cell values (notebook does this regardless)
     str_like = ["object", "string"]
     for col in df.select_dtypes(include=str_like).columns:
         df[col] = df[col].astype(str).str.strip()
 
-    # Drop fnlwgt (dropped before encoding in the notebook)
-    if "fnlwgt" in df.columns:
-        df = df.drop(columns=["fnlwgt"])
+    # Identify the income (target) column — could be 'income' or ' income'
+    target_col = next(c for c in df.columns if c.strip() == "income")
+    df[target_col] = df[target_col].map({"<=50K": 0, ">50K": 1})
 
-    # Separate target
-    target_col = "income" if "income" in df.columns else df.columns[-1]
-    df_clean = df.drop(columns=[target_col])
+    # One-hot encode all object columns except the target (drop_first=True)
+    cat_cols = [c for c in df.select_dtypes(include=str_like).columns if c != target_col]
+    df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
 
-    # One-hot encode categorical columns (drop_first=True, same as training)
-    cat_cols = df_clean.select_dtypes(include=str_like).columns.tolist()
-    X = pd.get_dummies(df_clean, columns=cat_cols, drop_first=True)
+    # Build X (drop target)
+    X_full = df.drop(columns=[target_col])
 
-    # Numeric columns the scaler was fit on
-    numeric_cols = [
-        "age",
-        "education-num",
-        "capital-gain",
-        "capital-loss",
-        "hours-per-week",
-    ]
-    numeric_cols = [c for c in numeric_cols if c in X.columns]
+    # Notebook scales ALL numeric columns (numeric ints/floats only —
+    # bool dummies are NOT picked up by select_dtypes(include=[np.number]) in
+    # modern pandas, only by include=['number','bool']). To match notebook
+    # exactly we use np.number which excludes bools.
+    scale_cols = X_full.select_dtypes(include=[np.number]).columns.tolist()
 
-    # Fit the scaler on the numeric columns only
     scaler = StandardScaler()
-    scaler.fit(X[numeric_cols])
+    scaler.fit(X_full[scale_cols])
 
-    return model, scaler, X.columns.tolist(), numeric_cols
+    # If the model gave us its expected feature names, use them as the canonical
+    # column order. Otherwise fall back to whatever we built.
+    final_columns = expected_features if expected_features is not None else X_full.columns.tolist()
+
+    return model, scaler, final_columns, scale_cols, leading_space_in_model, keeps_fnlwgt, raw_name_map
 
 # Initialize Model, Scaler and feature columns
 try:
-    model, scaler, feature_columns, NUMERIC_COLS = prepare_assets()
+    (
+        model,
+        scaler,
+        feature_columns,
+        NUMERIC_COLS,
+        LEADING_SPACE,
+        KEEPS_FNLWGT,
+        RAW_NAME_MAP,
+    ) = prepare_assets()
 except Exception as e:
-    st.error(f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' and 'adult.csv' are in the folder.")
+    st.error(f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' and 'income_evaluation.csv' (or 'adult.csv') are next to the app file.")
     st.stop()
 
 st.set_page_config(page_title="Income Prediction", layout="wide")
 st.title("💰 Income Prediction App")
 st.write("Enter demographic and employment details to predict whether annual income exceeds **$50K** (UCI Adult dataset).")
+st.caption(
+    f"Model expects {len(feature_columns)} features · "
+    f"leading-space schema: {LEADING_SPACE} · "
+    f"fnlwgt kept: {KEEPS_FNLWGT}"
+)
 
 # 2. Dropdown options (taken directly from the training CSV)
 WORKCLASS_OPTIONS = [
@@ -138,8 +211,8 @@ with col3:
 
 # 4. Prediction Logic
 if st.button("Predict Income", type="primary"):
-    # Build raw input dict — keys MUST match the original CSV column names
-    raw_input = {
+    # Build a dict keyed by STRIPPED column names — we'll remap to raw names below.
+    user_values = {
         "age": age,
         "workclass": workclass,
         "education": education,
@@ -154,22 +227,38 @@ if st.button("Predict Income", type="primary"):
         "hours-per-week": hours_per_week,
         "native-country": native_country,
     }
+    if KEEPS_FNLWGT:
+        # fnlwgt is a sampling weight, not asked of users — use a typical value.
+        user_values["fnlwgt"] = 178356  # approx median of training set
+
+    # Remap to the EXACT column names from the raw CSV (e.g. " workclass" if the
+    # CSV had a leading space and the model was trained with that schema).
+    if LEADING_SPACE:
+        raw_input = {RAW_NAME_MAP.get(k, k): v for k, v in user_values.items()}
+    else:
+        raw_input = user_values
 
     try:
         # 1. Create DataFrame from raw input
         df = pd.DataFrame([raw_input])
 
-        # 2. Strip whitespace from string columns (matches training)
+        # 2. Strip whitespace from string CELL values (matches training; we do
+        #    NOT strip column names here when LEADING_SPACE is true, because
+        #    we're intentionally preserving the leading-space schema).
         str_like = ["object", "string"]
         for col in df.select_dtypes(include=str_like).columns:
             df[col] = df[col].astype(str).str.strip()
 
-        # 3. One-hot encode (drop_first=True, same as training)
+        # 3. One-hot encode. Note: drop_first=True breaks for single-row input
+        #    because each categorical column has only one unique value, so
+        #    get_dummies + drop_first eliminates ALL dummies. We use
+        #    drop_first=False here; reindex below will keep only the columns
+        #    the model expects (which already reflect drop_first=True from training).
         cat_cols = df.select_dtypes(include=str_like).columns.tolist()
-        df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+        df = pd.get_dummies(df, columns=cat_cols, drop_first=False)
 
-        # 4. Align columns to training feature space
-        # (adds missing dummies as 0, drops extras, enforces column order)
+        # 4. Align columns to the model's expected feature space
+        #    (adds missing dummies as 0, drops extras, enforces column order)
         features_df = df.reindex(columns=feature_columns, fill_value=0)
 
         # 5. Scale numeric columns with the same scaler used in training
@@ -177,7 +266,10 @@ if st.button("Predict Income", type="primary"):
         if cols_to_scale:
             features_df[cols_to_scale] = scaler.transform(features_df[cols_to_scale])
 
-        # 6. Predict
+        # 6. Cast to numeric float — XGBoost dislikes bool dummies in some versions
+        features_df = features_df.astype(float)
+
+        # 7. Predict
         prediction = model.predict(features_df)[0]
 
         # Probability if available
