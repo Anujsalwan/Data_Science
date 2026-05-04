@@ -39,7 +39,7 @@ st.caption(
 # 2. Load model + preprocessing artifacts (cached)
 # ---------------------------------------------------------------------------
 MODEL_CANDIDATES = [
-    "best_gradient_boosting_model.pkl",
+    "best_xgboost_classifier.pkl",
 ]
 
 
