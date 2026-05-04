@@ -139,6 +139,7 @@ except Exception as e:
 
 st.set_page_config(page_title="Income Prediction", layout="wide")
 st.title("💰 Income Prediction App")
+st.wrte("Data Set Used : https://www.kaggle.com/datasets/lodetomasi1995/income-classification/version/1?resource=download")
 st.write("Enter demographic and employment details to predict whether annual income exceeds **$50K** (UCI Adult dataset).")
 st.caption(
     f"Model expects {len(feature_columns)} features · "
