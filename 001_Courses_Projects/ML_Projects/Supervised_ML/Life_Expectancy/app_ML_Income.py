@@ -6,22 +6,33 @@ from sklearn.preprocessing import StandardScaler
 import os
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+# Pandas 4.0 introduced Pandas4Warning; suppress if present, ignore otherwise.
+try:
+    warnings.filterwarnings("ignore", category=pd.errors.Pandas4Warning)  # type: ignore[attr-defined]
+except Exception:
+    pass
 
 # 1. Helper Function to generate/load the Scaler and training columns from the CSV
 @st.cache_resource
 def prepare_assets():
-    base_path = '001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/'
+    # Resolve paths relative to THIS script so it works no matter where Streamlit is launched from
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = os.path.join(script_dir, 'best_xgboost_classifier.pkl')
+    csv_path = os.path.join(script_dir, 'adult.csv')
 
     # Load the trained classifier
-    model = joblib.load(os.path.join(base_path, 'best_gradient_boosting_model.pkl'))
+    model = joblib.load(model_path)
 
     # Load CSV to recreate the scaler and training columns
-    df = pd.read_csv(os.path.join(base_path, 'income_evaluation.csv'))
+    df = pd.read_csv(csv_path)
 
     # Preprocessing to match the training pipeline in the notebook
-    # Strip whitespace from string columns
-    for col in df.select_dtypes(include="object").columns:
-        df[col] = df[col].str.strip()
+    # Strip whitespace from string columns (handle pandas 2/3/4 compat)
+    str_like = ["object", "string"]
+    for col in df.select_dtypes(include=str_like).columns:
+        df[col] = df[col].astype(str).str.strip()
 
     # Drop fnlwgt (dropped before encoding in the notebook)
     if "fnlwgt" in df.columns:
@@ -32,7 +43,7 @@ def prepare_assets():
     df_clean = df.drop(columns=[target_col])
 
     # One-hot encode categorical columns (drop_first=True, same as training)
-    cat_cols = df_clean.select_dtypes(include="object").columns.tolist()
+    cat_cols = df_clean.select_dtypes(include=str_like).columns.tolist()
     X = pd.get_dummies(df_clean, columns=cat_cols, drop_first=True)
 
     # Numeric columns the scaler was fit on
@@ -149,11 +160,12 @@ if st.button("Predict Income", type="primary"):
         df = pd.DataFrame([raw_input])
 
         # 2. Strip whitespace from string columns (matches training)
-        for col in df.select_dtypes(include="object").columns:
-            df[col] = df[col].str.strip()
+        str_like = ["object", "string"]
+        for col in df.select_dtypes(include=str_like).columns:
+            df[col] = df[col].astype(str).str.strip()
 
         # 3. One-hot encode (drop_first=True, same as training)
-        cat_cols = df.select_dtypes(include="object").columns.tolist()
+        cat_cols = df.select_dtypes(include=str_like).columns.tolist()
         df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
 
         # 4. Align columns to training feature space
