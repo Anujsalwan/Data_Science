@@ -20,7 +20,7 @@ def prepare_assets():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     model_path = os.path.join(script_dir, 'best_xgboost_classifier.pkl')
-    csv_path = os.path.join(script_dir, 'adult.csv')
+    csv_path = os.path.join(script_dir, 'income_evaluation.csv')
 
     # Load the trained classifier
     model = joblib.load(model_path)
