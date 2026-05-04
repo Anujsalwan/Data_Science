@@ -2,108 +2,171 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-import os
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
-# 1. Helper Function to generate/load the Scaler
+# 1. Helper Function to recreate the EXACT preprocessing used during training
 @st.cache_resource
 def prepare_assets():
-    # Load the new model
-    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_gradient_boosting_model.pkl')
-    
-    # Load CSV to recreate the scaler (since model was trained on scaled data)
-    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/Life Expectancy Data.csv')
-    
-    # Preprocessing to match the training pipeline in the notebook
-    df = df.drop_duplicates(subset=['Country', 'Year'])
-    df['Status'] = df['Status'].map({'Developed': 1, 'Developing': 0})
-    df_clean = df.drop(columns=['Country']).rename(columns={'Life expectancy ': 'Life_expectancy'})
-    
-    # Simple Imputation (as done in the notebook)
-    for col in df_clean.columns:
-        df_clean[col] = df_clean[col].fillna(df_clean[col].median())
-        
-    # Prepare Features (X)
-    X = df_clean.drop(columns=['Life_expectancy'])
-    
-    # Fit the scaler
-    scaler = StandardScaler()
-    scaler.fit(X)
-    
-    return model, scaler, X.columns.tolist()
+    # Load the trained classification model
+    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_xgboost_classifier.pkl')
 
-# Initialize Model and Scaler
+    # Load CSV to recreate the scaler & encoders
+    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/income_evaluation.csv')
+
+    # Strip whitespace from column names and string values
+    df.columns = [c.strip() for c in df.columns]
+    for col in df.select_dtypes(include='object').columns:
+        df[col] = df[col].str.strip()
+
+    # Replace '?' with NaN, then impute
+    df = df.replace('?', np.nan)
+
+    target_col = 'income'
+    categorical_cols = [
+        'workclass', 'education', 'marital-status', 'occupation',
+        'relationship', 'race', 'sex', 'native-country'
+    ]
+    # NOTE: model was trained WITHOUT 'fnlwgt' (per the error message)
+    numeric_cols = [
+        'age', 'education-num',
+        'capital-gain', 'capital-loss', 'hours-per-week'
+    ]
+
+    # Imputation
+    for col in categorical_cols:
+        df[col] = df[col].fillna(df[col].mode()[0])
+    for col in numeric_cols + ['fnlwgt']:
+        if col in df.columns:
+            df[col] = df[col].fillna(df[col].median())
+
+    # Save the unique categories for each categorical (for the dropdowns)
+    category_options = {col: sorted(df[col].unique().tolist()) for col in categorical_cols}
+
+    # Encode target
+    target_encoder = LabelEncoder()
+    df[target_col] = target_encoder.fit_transform(df[target_col].astype(str))
+
+    # ---- ONE-HOT ENCODE features (this is what the model was trained on) ----
+    # drop_first=True is what produces the column list seen in the error
+    # (e.g. no 'workclass_?' since '?' was imputed, no 'sex_Female' since drop_first)
+    X = df[numeric_cols + categorical_cols]
+    X_encoded = pd.get_dummies(X, columns=categorical_cols, drop_first=True)
+
+    # The exact feature order the model expects
+    feature_columns = list(X_encoded.columns)
+
+    # Fit the scaler on the one-hot encoded data
+    scaler = StandardScaler()
+    scaler.fit(X_encoded)
+
+    return model, scaler, target_encoder, feature_columns, category_options, numeric_cols, categorical_cols
+
+
+# Initialize
 try:
-    model, scaler, feature_columns = prepare_assets()
+    (model, scaler, target_encoder, feature_columns,
+     category_options, numeric_cols, categorical_cols) = prepare_assets()
 except Exception as e:
-    st.error(f"Error loading assets: {e}. Ensure 'best_gradient_boosting_model.pkl' and 'Life Expectancy Data.csv' are in the folder.")
+    st.error(
+        f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' "
+        f"and 'income_evaluation.csv' are in the folder."
+    )
     st.stop()
 
-st.set_page_config(page_title="Life Expectancy Predictor", layout="wide")
-st.title("🌍 Life Expectancy Prediction App")
-st.write("Enter health and economic indicators to predict the life expectancy of a population.")
+st.set_page_config(page_title="Income Classification Predictor", layout="wide")
+st.title("💰 Income Classification App")
+st.write(
+    "Enter demographic and employment indicators to predict whether annual income "
+    "is **>50K** or **≤50K** (UCI Adult / Kaggle Income Classification dataset)."
+)
 
-# 2. Input Fields Layout
+# 2. Input Fields
 st.subheader("Input Parameters")
 col1, col2, col3 = st.columns(3)
 
+def opts(col):
+    return category_options[col]
+
 with col1:
-    year = st.number_input("Year", 2000, 2090, 2015)
-    status = st.selectbox("Status", ["Developed", "Developing"])
-    adult_mortality = st.number_input("Adult Mortality (per 1000)", 1, 1000, 263)
-    infant_deaths = st.number_input("Infant Deaths (per 1000)", 0, 2000, 62)
-    alcohol = st.number_input("Alcohol Consumption (litres)", 0.0, 20.0, 0.01)
-    perc_exp = st.number_input("Percentage Expenditure (%)", 0.0, 20000.0, 71.2)
-    hep_b = st.number_input("Hepatitis B Coverage (%)", 0, 100, 65)
+    age = st.number_input("Age", 17, 100, 39)
+    workclass = st.selectbox("Workclass", opts('workclass'),
+                             index=opts('workclass').index('Private')
+                             if 'Private' in opts('workclass') else 0)
+    education = st.selectbox("Education", opts('education'),
+                             index=opts('education').index('Bachelors')
+                             if 'Bachelors' in opts('education') else 0)
+    education_num = st.number_input("Education-Num (years of edu)", 1, 20, 13)
 
 with col2:
-    measles = st.number_input("Measles (reported cases)", 0, 300000, 1154)
-    bmi = st.number_input("Average BMI", 1.0, 100.0, 19.1)
-    under_five = st.number_input("Under-five Deaths", 0, 3000, 83)
-    polio = st.number_input("Polio Coverage (%)", 0, 100, 6)
-    total_exp = st.number_input("Total Govt Expenditure (%)", 0.0, 20.0, 8.1)
-    diphtheria = st.number_input("Diphtheria Coverage (%)", 0, 100, 65)
-    hiv_aids = st.number_input("HIV/AIDS Prevalence (%)", 0.0, 60.0, 0.1)
+    marital_status = st.selectbox("Marital Status", opts('marital-status'))
+    occupation = st.selectbox("Occupation", opts('occupation'))
+    relationship = st.selectbox("Relationship", opts('relationship'))
+    race = st.selectbox("Race", opts('race'))
+    sex = st.selectbox("Sex", opts('sex'))
 
 with col3:
-    gdp = st.number_input("GDP (USD per capita)", 0.0, 120000.0, 584.2)
-    population = st.number_input("Population", 0.0, 2e9, 3.3e7)
-    thin_1_19 = st.number_input("Thinness 1-19 years (%)", 0.0, 30.0, 17.2)
-    thin_5_9 = st.number_input("Thinness 5-9 years (%)", 0.0, 30.0, 17.3)
-    income_comp = st.number_input("Income Composition of Resources", 0.0, 1.0, 0.47)
-    schooling = st.number_input("Schooling (years)", 0.0, 25.0, 10.1)
+    capital_gain = st.number_input("Capital Gain (USD)", 0, 100000, 2174)
+    capital_loss = st.number_input("Capital Loss (USD)", 0, 100000, 0)
+    hours_per_week = st.number_input("Hours per Week", 1, 100, 40)
+    native_country = st.selectbox("Native Country", opts('native-country'),
+                                  index=opts('native-country').index('United-States')
+                                  if 'United-States' in opts('native-country') else 0)
 
-# 3. Prediction Logic
-if st.button("Predict Life Expectancy", type="primary"):
-    status_numeric = 1 if status == "Developed" else 0
-    
-    # 1. Create the data as a list
-    input_data = [[
-        year, status_numeric, adult_mortality, infant_deaths, alcohol,
-        perc_exp, hep_b, measles, bmi, under_five, 
-        polio, total_exp, diphtheria, hiv_aids, gdp, 
-        population, thin_1_19, thin_5_9, income_comp, schooling
-    ]]
-    
-    # 2. Convert to DataFrame with the ORIGINAL feature names
-    # This silences the "UserWarning: X does not have valid feature names"
-    features_df = pd.DataFrame(input_data, columns=feature_columns)
-    
+# 3. Prediction
+if st.button("Predict Income Class", type="primary"):
+    # Build a single-row DataFrame with the RAW values (same shape as training X)
+    raw_row = pd.DataFrame([{
+        'age': age,
+        'education-num': education_num,
+        'capital-gain': capital_gain,
+        'capital-loss': capital_loss,
+        'hours-per-week': hours_per_week,
+        'workclass': workclass,
+        'education': education,
+        'marital-status': marital_status,
+        'occupation': occupation,
+        'relationship': relationship,
+        'race': race,
+        'sex': sex,
+        'native-country': native_country,
+    }])
+
     try:
-        # 4. Apply scaling using the DataFrame
-        scaled_features = scaler.transform(features_df)
-        
-        # 5. Predict (Pass the scaled features)
-        # Note: Scaler returns a numpy array, so the model might still warn. 
-        # To be 100% silent, turn the scaled array back into a DataFrame:
-        scaled_features_df = pd.DataFrame(scaled_features, columns=feature_columns)
-        prediction = model.predict(scaled_features_df)
-        
-        # Display Result
-        st.success(f"### Predicted Life Expectancy: {prediction[0]:.1f} years")
-        st.progress(min(max(prediction[0]/100, 0.0), 1.0))
-        
+        # One-hot encode the same way as training
+        encoded_row = pd.get_dummies(raw_row, columns=categorical_cols, drop_first=True)
+
+        # Align to training columns: add any missing dummy cols as 0, drop extras, reorder
+        encoded_row = encoded_row.reindex(columns=feature_columns, fill_value=0)
+
+        # Scale
+        scaled = scaler.transform(encoded_row)
+        scaled_df = pd.DataFrame(scaled, columns=feature_columns)
+
+        # Predict
+        prediction = model.predict(scaled_df)
+        pred_label = target_encoder.inverse_transform(prediction)[0]
+
+        # Probabilities
+        prob_text = ""
+        prob_map = {}
+        if hasattr(model, 'predict_proba'):
+            proba = model.predict_proba(scaled_df)[0]
+            classes = target_encoder.inverse_transform(model.classes_)
+            prob_map = dict(zip(classes, proba))
+            prob_text = " | ".join([f"{cls}: {p*100:.1f}%" for cls, p in prob_map.items()])
+
+        if str(pred_label).strip() == '>50K':
+            st.success(f"### Predicted Income: **{pred_label}** 💵")
+        else:
+            st.info(f"### Predicted Income: **{pred_label}**")
+
+        if prob_text:
+            st.caption(f"Class probabilities — {prob_text}")
+            high_income_prob = next((p for cls, p in prob_map.items()
+                                     if str(cls).strip() == '>50K'), 0.0)
+            st.progress(min(max(float(high_income_prob), 0.0), 1.0))
+
     except Exception as e:
         st.error(f"Prediction Error: {e}")
