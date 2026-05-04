@@ -14,6 +14,7 @@ def load_assets():
 model, scaler = load_assets()
 
 st.title("📱 Mobile Price Prediction")
+st.write("Data Set Used : https://www.kaggle.com/datasets/iabhishekofficial/mobile-price-classification")
 st.write("Estimate the price based on hardware specifications.")
 
 # 2. Input Fields (Based on your 'Cellphone.csv' ranges)
