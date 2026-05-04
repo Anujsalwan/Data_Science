@@ -1,181 +1,271 @@
-import streamlit as st
+"""
+Income Prediction Streamlit App
+--------------------------------
+Predicts whether a person's income is >50K or <=50K using the UCI Adult dataset.
+
+Required files in the same directory:
+    - best_<model_name>_classifier.pkl    (the trained classifier)
+    - train_columns.pkl                   (list of X_train.columns from the notebook)
+    - scaler.pkl                          (the StandardScaler fit on training data)
+
+Run with:
+    streamlit run app.py
+"""
+
+import os
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-import os
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+import streamlit as st
 
-# 1. Helper Function to generate/load the Scaler & Encoders
-@st.cache_resource
-def prepare_assets():
-    # Load the trained classification model
-    model = joblib.load('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/best_xgboost_classifier.pkl')
 
-    # Load CSV to recreate the scaler & label encoders
-    # (model was trained on encoded + scaled data)
-    df = pd.read_csv('001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/income_evaluation.csv')
-
-    # Strip whitespace from column names and string values
-    df.columns = [c.strip() for c in df.columns]
-    for col in df.select_dtypes(include='object').columns:
-        df[col] = df[col].str.strip()
-
-    # Replace '?' (the dataset's missing-value marker) with NaN, then impute
-    df = df.replace('?', np.nan)
-
-    # Identify column groups
-    target_col = 'income'
-    categorical_cols = [
-        'workclass', 'education', 'marital-status', 'occupation',
-        'relationship', 'race', 'sex', 'native-country'
-    ]
-    numeric_cols = [
-        'age', 'fnlwgt', 'education-num',
-        'capital-gain', 'capital-loss', 'hours-per-week'
-    ]
-
-    # Imputation: mode for categoricals, median for numerics
-    for col in categorical_cols:
-        df[col] = df[col].fillna(df[col].mode()[0])
-    for col in numeric_cols:
-        df[col] = df[col].fillna(df[col].median())
-
-    # Fit a LabelEncoder per categorical column (matches the typical notebook pipeline)
-    encoders = {}
-    for col in categorical_cols:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col].astype(str))
-        encoders[col] = le
-
-    # Encode target separately (so we can map prediction back to label)
-    target_encoder = LabelEncoder()
-    df[target_col] = target_encoder.fit_transform(df[target_col].astype(str))
-
-    # Prepare features in the exact order used at training time
-    feature_columns = numeric_cols + categorical_cols
-    X = df[feature_columns]
-
-    # Fit the scaler on all features
-    scaler = StandardScaler()
-    scaler.fit(X)
-
-    return model, scaler, encoders, target_encoder, feature_columns
-
-# Initialize Model, Scaler, and Encoders
-try:
-    model, scaler, encoders, target_encoder, feature_columns = prepare_assets()
-except Exception as e:
-    st.error(
-        f"Error loading assets: {e}. Ensure 'best_xgboost_classifier.pkl' "
-        f"and 'income_evaluation.csv' are in the folder."
-    )
-    st.stop()
-
-st.set_page_config(page_title="Income Classification Predictor", layout="wide")
-st.title("💰 Income Classification App")
-st.write(
-    "Enter demographic and employment indicators to predict whether annual income "
-    "is **>50K** or **≤50K** (UCI Adult / Kaggle Income Classification dataset)."
+# ---------------------------------------------------------------------------
+# 1. Page config
+# ---------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Income Prediction",
+    page_icon="💰",
+    layout="centered",
 )
 
-# 2. Input Fields Layout
-st.subheader("Input Parameters")
-col1, col2, col3 = st.columns(3)
+st.title("💰 Income Prediction App")
+st.caption(
+    "Predicts whether annual income exceeds **$50K** based on demographic and "
+    "employment data (UCI Adult dataset)."
+)
 
-# Helper: pull the original class labels from each fitted encoder so the
-# selectboxes show human-readable options (not encoded integers).
-def options(col):
-    return list(encoders[col].classes_)
 
-with col1:
-    age = st.number_input("Age", 17, 100, 39)
-    workclass = st.selectbox("Workclass", options('workclass'),
-                             index=options('workclass').index('Private')
-                             if 'Private' in options('workclass') else 0)
-    fnlwgt = st.number_input("Final Weight (fnlwgt)", 0, 2000000, 77516)
-    education = st.selectbox("Education", options('education'),
-                             index=options('education').index('Bachelors')
-                             if 'Bachelors' in options('education') else 0)
-    education_num = st.number_input("Education-Num (years of edu)", 1, 20, 13)
+# ---------------------------------------------------------------------------
+# 2. Load model + preprocessing artifacts (cached)
+# ---------------------------------------------------------------------------
+MODEL_CANDIDATES = [
+    "best_xgboost_classifier.pkl",
+    "best_lightgbm_classifier.pkl",
+    "best_gradient_boosting_classifier.pkl",
+    "best_random_forest_classifier.pkl",
+    "best_logistic_regression_classifier.pkl",
+]
 
-with col2:
-    marital_status = st.selectbox("Marital Status", options('marital-status'))
-    occupation = st.selectbox("Occupation", options('occupation'))
-    relationship = st.selectbox("Relationship", options('relationship'))
-    race = st.selectbox("Race", options('race'))
-    sex = st.selectbox("Sex", options('sex'))
 
-with col3:
-    capital_gain = st.number_input("Capital Gain (USD)", 0, 100000, 2174)
-    capital_loss = st.number_input("Capital Loss (USD)", 0, 100000, 0)
-    hours_per_week = st.number_input("Hours per Week", 1, 100, 40)
-    native_country = st.selectbox("Native Country", options('native-country'),
-                                  index=options('native-country').index('United-States')
-                                  if 'United-States' in options('native-country') else 0)
-
-# 3. Prediction Logic
-if st.button("Predict Income Class", type="primary"):
-    # 1. Encode categorical inputs using the fitted encoders
-    try:
-        encoded_categoricals = {
-            'workclass': encoders['workclass'].transform([workclass])[0],
-            'education': encoders['education'].transform([education])[0],
-            'marital-status': encoders['marital-status'].transform([marital_status])[0],
-            'occupation': encoders['occupation'].transform([occupation])[0],
-            'relationship': encoders['relationship'].transform([relationship])[0],
-            'race': encoders['race'].transform([race])[0],
-            'sex': encoders['sex'].transform([sex])[0],
-            'native-country': encoders['native-country'].transform([native_country])[0],
-        }
-    except Exception as e:
-        st.error(f"Encoding Error: {e}")
+@st.cache_resource
+def load_artifacts():
+    """Load model, training column list, and scaler. Cached across reruns."""
+    # find whichever classifier .pkl is present
+    model_path = next((p for p in MODEL_CANDIDATES if os.path.exists(p)), None)
+    if model_path is None:
+        st.error(
+            "No classifier .pkl found. Expected one of: "
+            + ", ".join(MODEL_CANDIDATES)
+        )
         st.stop()
 
-    # 2. Assemble the row in the SAME column order used during training
-    input_row = {
-        'age': age,
-        'fnlwgt': fnlwgt,
-        'education-num': education_num,
-        'capital-gain': capital_gain,
-        'capital-loss': capital_loss,
-        'hours-per-week': hours_per_week,
-        **encoded_categoricals,
+    if not os.path.exists("train_columns.pkl"):
+        st.error(
+            "`train_columns.pkl` is missing. Re-run training and add:\n\n"
+            "```python\njoblib.dump(list(X_train.columns), 'train_columns.pkl')\n```"
+        )
+        st.stop()
+
+    if not os.path.exists("scaler.pkl"):
+        st.error(
+            "`scaler.pkl` is missing. Re-run training and add:\n\n"
+            "```python\njoblib.dump(scaler, 'scaler.pkl')\n```"
+        )
+        st.stop()
+
+    model = joblib.load(model_path)
+    train_columns = joblib.load("train_columns.pkl")
+    scaler = joblib.load("scaler.pkl")
+    return model, train_columns, scaler, model_path
+
+
+model, TRAIN_COLUMNS, scaler, model_path = load_artifacts()
+
+# Numeric columns that the scaler was fit on (must match training exactly).
+# In the notebook fnlwgt was DROPPED before scaling, so it's not here.
+NUMERIC_COLS = [
+    "age",
+    "education-num",
+    "capital-gain",
+    "capital-loss",
+    "hours-per-week",
+]
+
+
+# ---------------------------------------------------------------------------
+# 3. Dropdown options (taken directly from the training CSV)
+# ---------------------------------------------------------------------------
+WORKCLASS_OPTIONS = [
+    "Private", "Self-emp-not-inc", "Self-emp-inc", "Federal-gov", "Local-gov",
+    "State-gov", "Without-pay", "Never-worked", "?",
+]
+EDUCATION_OPTIONS = [
+    "Preschool", "1st-4th", "5th-6th", "7th-8th", "9th", "10th", "11th", "12th",
+    "HS-grad", "Some-college", "Assoc-voc", "Assoc-acdm", "Bachelors",
+    "Masters", "Prof-school", "Doctorate",
+]
+# education-num mapping (matches the dataset's encoding)
+EDUCATION_NUM_MAP = {
+    "Preschool": 1, "1st-4th": 2, "5th-6th": 3, "7th-8th": 4, "9th": 5,
+    "10th": 6, "11th": 7, "12th": 8, "HS-grad": 9, "Some-college": 10,
+    "Assoc-voc": 11, "Assoc-acdm": 12, "Bachelors": 13, "Masters": 14,
+    "Prof-school": 15, "Doctorate": 16,
+}
+MARITAL_OPTIONS = [
+    "Married-civ-spouse", "Never-married", "Divorced", "Separated", "Widowed",
+    "Married-spouse-absent", "Married-AF-spouse",
+]
+OCCUPATION_OPTIONS = [
+    "Prof-specialty", "Exec-managerial", "Adm-clerical", "Sales", "Craft-repair",
+    "Other-service", "Machine-op-inspct", "Transport-moving", "Handlers-cleaners",
+    "Tech-support", "Farming-fishing", "Protective-serv", "Priv-house-serv",
+    "Armed-Forces", "?",
+]
+RELATIONSHIP_OPTIONS = [
+    "Husband", "Not-in-family", "Own-child", "Unmarried", "Wife", "Other-relative",
+]
+RACE_OPTIONS = ["White", "Black", "Asian-Pac-Islander", "Amer-Indian-Eskimo", "Other"]
+SEX_OPTIONS = ["Male", "Female"]
+COUNTRY_OPTIONS = [
+    "United-States", "Mexico", "Philippines", "Germany", "Canada", "Puerto-Rico",
+    "El-Salvador", "India", "Cuba", "England", "Jamaica", "South", "China",
+    "Italy", "Dominican-Republic", "Vietnam", "Guatemala", "Japan", "Poland",
+    "Columbia", "Taiwan", "Haiti", "Iran", "Portugal", "Nicaragua", "Peru",
+    "Greece", "France", "Ecuador", "Ireland", "Hong", "Cambodia", "Trinadad&Tobago",
+    "Laos", "Thailand", "Yugoslavia", "Outlying-US(Guam-USVI-etc)", "Honduras",
+    "Hungary", "Scotland", "Holand-Netherlands", "?",
+]
+
+
+# ---------------------------------------------------------------------------
+# 4. Preprocessing — must mirror the notebook EXACTLY
+# ---------------------------------------------------------------------------
+def preprocess_input(raw: dict) -> pd.DataFrame:
+    """Turn a dict of raw form values into a model-ready feature row.
+
+    Steps (must match the training notebook):
+      1. Build a one-row DataFrame.
+      2. Drop `fnlwgt` (the notebook drops it before encoding).
+      3. Strip whitespace from string columns.
+      4. One-hot encode categorical columns with drop_first=True.
+      5. Reindex to TRAIN_COLUMNS — adds missing dummies as 0, drops extras,
+         enforces the exact training column order.
+      6. Scale the numeric columns with the SAME StandardScaler used in training.
+    """
+    df = pd.DataFrame([raw])
+
+    # Step 2: drop fnlwgt if present
+    if "fnlwgt" in df.columns:
+        df = df.drop(columns=["fnlwgt"])
+
+    # Step 3: strip whitespace from object columns (training did this)
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].str.strip()
+
+    # Step 4: one-hot encode (drop_first=True, same as training)
+    cat_cols = df.select_dtypes(include="object").columns.tolist()
+    df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+
+    # Step 5: align columns to training feature space
+    df = df.reindex(columns=TRAIN_COLUMNS, fill_value=0)
+
+    # Step 6: scale numeric columns (only those that exist in TRAIN_COLUMNS)
+    cols_to_scale = [c for c in NUMERIC_COLS if c in df.columns]
+    if cols_to_scale:
+        df[cols_to_scale] = scaler.transform(df[cols_to_scale])
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# 5. Sidebar — model info
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    st.header("Model")
+    st.write(f"**File:** `{model_path}`")
+    st.write(f"**Type:** `{type(model).__name__}`")
+    st.write(f"**# features expected:** {len(TRAIN_COLUMNS)}")
+    with st.expander("Show feature list"):
+        st.write(TRAIN_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# 6. Input form
+# ---------------------------------------------------------------------------
+st.subheader("Enter the person's details")
+
+with st.form("income_form"):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        age = st.number_input("Age", min_value=17, max_value=90, value=37, step=1)
+        education = st.selectbox("Education", EDUCATION_OPTIONS, index=EDUCATION_OPTIONS.index("HS-grad"))
+        workclass = st.selectbox("Workclass", WORKCLASS_OPTIONS, index=0)
+        occupation = st.selectbox("Occupation", OCCUPATION_OPTIONS, index=0)
+        hours_per_week = st.number_input("Hours per week", min_value=1, max_value=99, value=40, step=1)
+        capital_gain = st.number_input("Capital gain", min_value=0, max_value=99999, value=0, step=100)
+
+    with col2:
+        sex = st.selectbox("Sex", SEX_OPTIONS, index=0)
+        race = st.selectbox("Race", RACE_OPTIONS, index=0)
+        marital_status = st.selectbox("Marital status", MARITAL_OPTIONS, index=0)
+        relationship = st.selectbox("Relationship", RELATIONSHIP_OPTIONS, index=0)
+        native_country = st.selectbox("Native country", COUNTRY_OPTIONS, index=0)
+        capital_loss = st.number_input("Capital loss", min_value=0, max_value=4356, value=0, step=50)
+
+    submitted = st.form_submit_button("Predict", type="primary", use_container_width=True)
+
+
+# ---------------------------------------------------------------------------
+# 7. Prediction
+# ---------------------------------------------------------------------------
+if submitted:
+    # Build raw input dict — keys MUST match the original CSV column names
+    raw_input = {
+        "age": age,
+        "workclass": workclass,
+        "education": education,
+        "education-num": EDUCATION_NUM_MAP[education],
+        "marital-status": marital_status,
+        "occupation": occupation,
+        "relationship": relationship,
+        "race": race,
+        "sex": sex,
+        "capital-gain": capital_gain,
+        "capital-loss": capital_loss,
+        "hours-per-week": hours_per_week,
+        "native-country": native_country,
     }
-    features_df = pd.DataFrame([[input_row[c] for c in feature_columns]],
-                               columns=feature_columns)
 
     try:
-        # 3. Apply scaling
-        scaled_features = scaler.transform(features_df)
-        scaled_features_df = pd.DataFrame(scaled_features, columns=feature_columns)
+        X_new = preprocess_input(raw_input)
+        pred = model.predict(X_new)[0]
 
-        # 4. Predict
-        prediction = model.predict(scaled_features_df)
-        pred_label = target_encoder.inverse_transform(prediction)[0]
+        # Probability if the model supports it
+        proba = None
+        if hasattr(model, "predict_proba"):
+            proba = model.predict_proba(X_new)[0]
 
-        # 5. Probability (if the model supports it)
-        prob_text = ""
-        if hasattr(model, 'predict_proba'):
-            proba = model.predict_proba(scaled_features_df)[0]
-            classes = target_encoder.inverse_transform(model.classes_)
-            prob_map = dict(zip(classes, proba))
-            prob_text = " | ".join([f"{cls}: {p*100:.1f}%" for cls, p in prob_map.items()])
+        st.divider()
+        st.subheader("Prediction")
 
-        # Display Result
-        if str(pred_label).strip() == '>50K':
-            st.success(f"### Predicted Income: **{pred_label}** 💵")
+        if int(pred) == 1:
+            st.success("### 💸 Income is likely **> $50K**")
         else:
-            st.info(f"### Predicted Income: **{pred_label}**")
+            st.info("### 💵 Income is likely **≤ $50K**")
 
-        if prob_text:
-            st.caption(f"Class probabilities — {prob_text}")
+        if proba is not None:
+            c1, c2 = st.columns(2)
+            c1.metric("P(income ≤ $50K)", f"{proba[0]*100:.1f}%")
+            c2.metric("P(income > $50K)", f"{proba[1]*100:.1f}%")
+            st.progress(float(proba[1]))
 
-            # Progress bar showing probability of >50K
-            high_income_prob = next((p for cls, p in prob_map.items()
-                                     if str(cls).strip() == '>50K'), 0.0)
-            st.progress(min(max(float(high_income_prob), 0.0), 1.0))
+        with st.expander("Show raw input sent to the model"):
+            st.json(raw_input)
+
+        with st.expander("Show processed feature row (first 30 cols)"):
+            st.dataframe(X_new.iloc[:, :30])
 
     except Exception as e:
-        st.error(f"Prediction Error: {e}")
+        st.error(f"Prediction failed: {e}")
+        st.exception(e)
