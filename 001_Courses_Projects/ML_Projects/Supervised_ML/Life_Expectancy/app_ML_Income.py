@@ -40,10 +40,6 @@ st.caption(
 # ---------------------------------------------------------------------------
 MODEL_CANDIDATES = [
     "best_xgboost_classifier.pkl",
-    "best_lightgbm_classifier.pkl",
-    "best_gradient_boosting_classifier.pkl",
-    "best_random_forest_classifier.pkl",
-    "best_logistic_regression_classifier.pkl",
 ]
 
 
