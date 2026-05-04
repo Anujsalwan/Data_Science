@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 # 1. Helper Function to generate/load the Scaler and training columns from the CSV
 @st.cache_resource
 def prepare_assets():
-    base_path = '001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy'
+    base_path = '001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/'
 
     # Load the trained classifier
     model = joblib.load(os.path.join(base_path, 'best_xgboost_classifier.pkl'))
