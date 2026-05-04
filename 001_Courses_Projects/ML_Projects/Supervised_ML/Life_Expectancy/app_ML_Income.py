@@ -13,10 +13,10 @@ def prepare_assets():
     base_path = '001_Courses_Projects/ML_Projects/Supervised_ML/Life_Expectancy/'
 
     # Load the trained classifier
-    model = joblib.load(os.path.join(base_path, 'best_xgboost_classifier.pkl'))
+    model = joblib.load(os.path.join(base_path, 'best_gradient_boosting_model.pkl'))
 
     # Load CSV to recreate the scaler and training columns
-    df = pd.read_csv(os.path.join(base_path, 'adult.csv'))
+    df = pd.read_csv(os.path.join(base_path, 'income_evaluation.csv'))
 
     # Preprocessing to match the training pipeline in the notebook
     # Strip whitespace from string columns
