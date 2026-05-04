@@ -44,6 +44,7 @@ except Exception as e:
 st.set_page_config(page_title="Life Expectancy Predictor", layout="wide")
 st.title("🌍 Life Expectancy Prediction App")
 st.write("Enter health and economic indicators to predict the life expectancy of a population.")
+st.write("Data Set Used : https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who")
 
 # 2. Input Fields Layout
 st.subheader("Input Parameters")
