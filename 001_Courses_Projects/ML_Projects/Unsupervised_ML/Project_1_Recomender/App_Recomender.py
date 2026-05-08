@@ -9,7 +9,7 @@ st.title("🎬 Content Similarity Engine")
 
 def load_data():
     # Updated to the raw user content URL
-    url = "https://raw.githubusercontent.com/Anujsalwan/Data_Science/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/rating.csv"
+    url = "https://raw.githubusercontent.com/Anujsalwan/Data_Science/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/anime.csv"
     data = pd.read_csv(url)
     return data
 
