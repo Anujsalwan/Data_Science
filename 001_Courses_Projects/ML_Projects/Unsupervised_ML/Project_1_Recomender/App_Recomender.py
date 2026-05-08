@@ -7,11 +7,8 @@ st.title("🎬 Content Similarity Engine")
 
 @st.cache_data
 def load_data():
-    # Placeholder: Replace with your dataset path
-    data = pd.DataFrame({
-        'title': ['The Matrix', 'Inception', 'Toy Story', 'Interstellar'],
-        'genres': ['Sci-Fi Action', 'Sci-Fi Thriller', 'Animation Kids', 'Sci-Fi Drama']
-    })
+
+    data = pd.read_csv("https://github.com/Anujsalwan/Data_Science/tree/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/rating.csv")
     return data
 
 df = load_data()
