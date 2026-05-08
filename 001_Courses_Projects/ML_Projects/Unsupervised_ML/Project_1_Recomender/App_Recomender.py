@@ -16,7 +16,7 @@ def load_data():
 df = load_data()
 df.columns = df.columns.str.strip()
 tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(df['genre'])
+tfidf_matrix = tfidf.fit_transform(df['genre'].dropna)
 cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
 movie_list = df['title'].values
