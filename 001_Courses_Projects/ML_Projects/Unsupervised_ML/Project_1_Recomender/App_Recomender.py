@@ -29,4 +29,4 @@ if st.button("Recommend"):
     
     st.write("Top Recommendations:")
     for i in sim_scores:
-        st.write(f"- {df['title'].iloc[i[0]]}")
+        st.write(f"- {df['name'].iloc[i[0]]}")
