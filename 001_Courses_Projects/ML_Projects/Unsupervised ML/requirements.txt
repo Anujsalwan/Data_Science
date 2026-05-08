@@ -1,18 +1,7 @@
-# Data Manipulation & Science
-numpy
-pandas
-scipy
-statsmodels
-
-# Machine Learning & NLP
-scikit-learn
-
-# Visualization
-matplotlib
-seaborn
-
-# Web Application Framework
 streamlit
-
-# Jupyter Support (if running locally)
-ipykernel
+pandas
+numpy
+scikit-learn
+seaborn
+matplotlib
+scipy
