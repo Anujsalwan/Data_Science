@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 st.title("🎬 Content Similarity Engine")
 
 @st.cache_data
-@st.cache_data
+
 def load_data():
     # Updated to the raw user content URL
     url = "https://raw.githubusercontent.com/Anujsalwan/Data_Science/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/rating.csv"
@@ -14,6 +14,7 @@ def load_data():
     return data
 
 df = load_data()
+df.columns = df.columns.str.strip()
 tfidf = TfidfVectorizer(stop_words='english')
 tfidf_matrix = tfidf.fit_transform(df['genres'])
 cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
