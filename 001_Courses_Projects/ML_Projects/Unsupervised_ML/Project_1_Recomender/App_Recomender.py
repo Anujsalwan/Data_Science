@@ -23,7 +23,7 @@ movie_list = df['name'].values
 selected_movie = st.selectbox("Select a movie to find similarities:", movie_list)
 
 if st.button("Recommend"):
-    idx = df.index[df['title'] == selected_movie][0]
+    idx = df.index[df['name'] == selected_movie][0]
     sim_scores = list(enumerate(cosine_sim[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:3]
     
