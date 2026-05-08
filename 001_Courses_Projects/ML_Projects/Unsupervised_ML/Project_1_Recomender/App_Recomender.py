@@ -19,7 +19,7 @@ tfidf = TfidfVectorizer(stop_words='english')
 tfidf_matrix = tfidf.fit_transform(df['genre'].dropna())
 cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
-movie_list = df['title'].values
+movie_list = df['name'].values
 selected_movie = st.selectbox("Select a movie to find similarities:", movie_list)
 
 if st.button("Recommend"):
