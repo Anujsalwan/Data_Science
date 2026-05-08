@@ -6,9 +6,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 st.title("🎬 Content Similarity Engine")
 
 @st.cache_data
+@st.cache_data
 def load_data():
-
-    data = pd.read_csv("https://github.com/Anujsalwan/Data_Science/tree/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/rating.csv")
+    # Updated to the raw user content URL
+    url = "https://raw.githubusercontent.com/Anujsalwan/Data_Science/main/001_Courses_Projects/ML_Projects/Unsupervised_ML/Project_1_Recomender/rating.csv"
+    data = pd.read_csv(url)
     return data
 
 df = load_data()
