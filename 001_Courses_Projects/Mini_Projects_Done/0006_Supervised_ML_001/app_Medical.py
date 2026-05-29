@@ -25,14 +25,14 @@ st.caption(
 # Load model (cached so it only loads once per session)
 # ------------------------------------------------------------
 @st.cache_resource
-def load_model(path="best_model.pkl"):
+def load_model(path="001_Courses_Projects/Mini_Projects_Done/0006_Supervised_ML_001/best_model.pkl"):
     if not os.path.exists(path):
         return None
     return joblib.load(path)
 
 
 @st.cache_resource
-def load_model_name(path="best_model_name.txt"):
+def load_model_name(path="001_Courses_Projects/Mini_Projects_Done/0006_Supervised_ML_001/best_model_name.txt"):
     if os.path.exists(path):
         with open(path) as f:
             return f.read().strip()
