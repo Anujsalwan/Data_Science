@@ -1,0 +1,10 @@
+{
+  "model_name": "VGG16",
+  "img_size": 128,
+  "classes": [
+    "Covid",
+    "Normal",
+    "Viral Pneumonia"
+  ],
+  "preprocess": "vgg"
+}
