@@ -39,8 +39,8 @@ st.caption(
 # ---------------------------------------------------------------------------
 # Load artifacts (cached so they load only once per session)
 # ---------------------------------------------------------------------------
-ARTIFACTS = ["bean_model.pkl", "scaler.pkl", "label_encoder.pkl",
-             "feature_columns.pkl", "feature_ranges.pkl"]
+ARTIFACTS = ["001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/bean_model.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/scaler.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/label_encoder.pkl",
+             "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_columns.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_ranges.pkl"]
 
 
 @st.cache_resource
