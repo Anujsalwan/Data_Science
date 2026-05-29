@@ -4,10 +4,10 @@ Dry Bean Type Classifier — Streamlit App
 Run locally (no Docker required):
 
     pip install -r requirements.txt
-    streamlit run streamlit_app.py
+    streamlit run beans_app.py
 
 The app expects these artifacts (produced by Beans_Multiclass_Classification.ipynb)
-to live in the same folder:
+to live in the same folder as this script:
     - bean_model.pkl
     - scaler.pkl
     - label_encoder.pkl
@@ -39,20 +39,29 @@ st.caption(
 # ---------------------------------------------------------------------------
 # Load artifacts (cached so they load only once per session)
 # ---------------------------------------------------------------------------
-ARTIFACTS = ["001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/bean_model.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/scaler.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/label_encoder.pkl",
-             "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_columns.pkl", "001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_ranges.pkl"]
+# Anchor artifact paths to THIS file's directory, not the current working
+# directory. This way the app works no matter where you launch it from.
+HERE = os.path.dirname(os.path.abspath(__file__))
+ARTIFACT_NAMES = [
+    "bean_model.pkl",
+    "scaler.pkl",
+    "label_encoder.pkl",
+    "feature_columns.pkl",
+    "feature_ranges.pkl",
+]
+ARTIFACTS = {name: os.path.join(HERE, name) for name in ARTIFACT_NAMES}
 
 
 @st.cache_resource
 def load_artifacts():
-    missing = [f for f in ARTIFACTS if not os.path.exists(f)]
+    missing = [name for name, path in ARTIFACTS.items() if not os.path.exists(path)]
     if missing:
         return None, None, None, None, None, missing
-    model    = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/bean_model.pkl")
-    scaler   = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/scaler.pkl")
-    le       = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/label_encoder.pkl")
-    cols     = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_columns.pkl")
-    ranges   = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_ranges.pkl")
+    model    = joblib.load(ARTIFACTS["bean_model.pkl"])
+    scaler   = joblib.load(ARTIFACTS["scaler.pkl"])
+    le       = joblib.load(ARTIFACTS["label_encoder.pkl"])
+    cols     = joblib.load(ARTIFACTS["feature_columns.pkl"])
+    ranges   = joblib.load(ARTIFACTS["feature_ranges.pkl"])
     return model, scaler, le, cols, ranges, []
 
 
@@ -61,7 +70,9 @@ model, scaler, le, feature_columns, feature_ranges, missing = load_artifacts()
 if missing:
     st.error(
         "Missing artifact file(s): " + ", ".join(missing) +
-        ". Please run **Beans_Multiclass_Classification.ipynb** first to generate them."
+        f".\n\nLooked in: `{HERE}`\n\n"
+        "Please run **Beans_Multiclass_Classification.ipynb** first to generate them, "
+        "and make sure the `.pkl` files sit in the same folder as this script."
     )
     st.stop()
 
