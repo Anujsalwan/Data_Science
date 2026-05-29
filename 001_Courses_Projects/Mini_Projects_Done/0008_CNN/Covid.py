@@ -18,7 +18,7 @@ MODEL_FILE_ID = "1m642cFoayk6OC8B41O5RAfG_0hbjoWx9"   # best_model.keras  (the b
 META_FILE_ID  = None                              # e.g. "1AbC...xyz" or None
 
 MODEL_PATH = "models/best_model.keras"
-META_PATH  = "models/best_model_meta.json"
+META_PATH  = "001_Courses_Projects/Mini_Projects_Done/0008_CNN/best_model_meta.json"
 
 # --- Page setup -----------------------------------------------------------
 st.set_page_config(page_title="COVID-19 X-ray Classifier",
