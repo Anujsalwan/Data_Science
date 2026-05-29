@@ -48,11 +48,11 @@ def load_artifacts():
     missing = [f for f in ARTIFACTS if not os.path.exists(f)]
     if missing:
         return None, None, None, None, None, missing
-    model    = joblib.load("bean_model.pkl")
-    scaler   = joblib.load("scaler.pkl")
-    le       = joblib.load("label_encoder.pkl")
-    cols     = joblib.load("feature_columns.pkl")
-    ranges   = joblib.load("feature_ranges.pkl")
+    model    = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/bean_model.pkl")
+    scaler   = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/scaler.pkl")
+    le       = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/label_encoder.pkl")
+    cols     = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_columns.pkl")
+    ranges   = joblib.load("001_Courses_Projects/Mini_Projects_Done/0007_Supervised_ML_Classifications/feature_ranges.pkl")
     return model, scaler, le, cols, ranges, []
 
 
