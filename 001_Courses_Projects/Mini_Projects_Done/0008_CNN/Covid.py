@@ -11,7 +11,7 @@ from tensorflow.keras.applications.resnet50 import preprocess_input as resnet_pr
 # --- Config: Google Drive file IDs ----------------------------------------
 # Get these from the Drive SHARE link of each file (set to "Anyone with the link").
 # A file link looks like:  https://drive.google.com/file/d/THIS_PART_IS_THE_ID/view
-MODEL_FILE_ID = "1m642cFoayk6OC8B41O5RAfG_0hbjoWx"   # best_model.keras  (the big one)
+MODEL_FILE_ID = "1m642cFoayk6OC8B41O5RAfG_0hbjoWx9"   # best_model.keras  (the big one)
 
 # Optional: if you also host the meta JSON on Drive, paste its ID here.
 # Leave as None and just commit models/best_model_meta.json to your repo instead.
